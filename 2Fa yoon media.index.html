@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yoon Media - 2FA Code Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/otpauth@9/dist/otpauth.umd.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@400;700&family=Roboto+Mono:wght@700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Kantumruy Pro', sans-serif;
+            background-color: #111827; /* bg-gray-900 */
+        }
+        .otp-code {
+            font-family: 'Roboto Mono', monospace;
+        }
+        #progress-ring-circle {
+            transition: stroke-dashoffset 1s linear;
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-sm mx-auto">
+        <div class="bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl p-6 text-center text-gray-300">
+            
+            <!-- Header -->
+            <div class="mb-6">
+                <h1 class="text-3xl font-bold text-white">Yoon Media</h1>
+                <p class="text-gray-400">ឧបករណ៍បង្កើតលេខកូដ 2FA</p>
+            </div>
+
+            <!-- Secret Key Input -->
+            <div class="relative">
+                <i class="fas fa-key absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"></i>
+                <input type="text" id="secret-key-input" class="w-full bg-gray-900 border border-gray-600 rounded-lg py-3 pl-12 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="បញ្ចូល 2FA Secret Key...">
+            </div>
+
+             <!-- Result Display Area -->
+            <div id="display-area" class="mt-8 hidden">
+                <div class="relative w-48 h-48 mx-auto">
+                    <!-- Progress Ring -->
+                    <svg class="w-full h-full" viewBox="0 0 120 120">
+                        <circle class="text-gray-700" stroke-width="8" stroke="currentColor" fill="transparent" r="56" cx="60" cy="60" />
+                        <circle id="progress-ring-circle" class="text-cyan-400" stroke-width="8" stroke-linecap="round" stroke="currentColor" fill="transparent" r="56" cx="60" cy="60" />
+                    </svg>
+                    <!-- Code and Timer -->
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                        <p id="timer-text" class="text-xl font-bold text-white">30</p>
+                        <p class="text-xs text-gray-400">វិនាទី</p>
+                    </div>
+                </div>
+
+                <div class="relative bg-gray-900 border border-gray-700 p-4 mt-6 rounded-lg">
+                    <p id="otp-code" class="otp-code text-5xl font-bold text-cyan-400 tracking-widest">--- ---</p>
+                    <button id="copy-btn" class="absolute top-1/2 right-4 -translate-y-1/2 text-gray-500 hover:text-white transition-colors" title="ចម្លងលេខកូដ">
+                        <i class="fas fa-copy text-2xl"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Initial Message -->
+            <div id="initial-message" class="py-16">
+                <i class="fas fa-shield-halved text-5xl text-gray-600"></i>
+                <p class="mt-4 text-gray-500">សូមបញ្ចូល Secret Key ដើម្បីបង្កើតលេខកូដ</p>
+            </div>
+        </div>
+
+        <!-- Security Footer -->
+        <p class="text-center text-xs text-gray-500 mt-4">
+            <i class="fas fa-lock mr-1"></i>ដំណើរការដោយសុវត្ថិភាពនៅក្នុង Browser របស់អ្នក
+        </p>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const secretKeyInput = document.getElementById('secret-key-input');
+            const displayArea = document.getElementById('display-area');
+            const initialMessage = document.getElementById('initial-message');
+            const otpCodeElement = document.getElementById('otp-code');
+            const timerText = document.getElementById('timer-text');
+            const copyBtn = document.getElementById('copy-btn');
+            const progressRing = document.getElementById('progress-ring-circle');
+            const radius = progressRing.r.baseVal.value;
+            const circumference = 2 * Math.PI * radius;
+            progressRing.style.strokeDasharray = `${circumference} ${circumference}`;
+
+            let totp = null;
+            let intervalId = null;
+
+            secretKeyInput.addEventListener('input', () => {
+                const secret = secretKeyInput.value.trim().replace(/\s/g, '');
+
+                if (intervalId) {
+                    clearInterval(intervalId);
+                    intervalId = null;
+                }
+                
+                if (secret) {
+                    try {
+                        const secretAsBase32 = otpauth.Secret.fromBase32(secret);
+
+                        totp = new otpauth.TOTP({
+                            issuer: 'Yoon Media',
+                            label: 'GeneratedCode',
+                            algorithm: 'SHA1',
+                            digits: 6,
+                            period: 30,
+                            secret: secretAsBase32,
+                        });
+
+                        displayArea.classList.remove('hidden');
+                        initialMessage.classList.add('hidden');
+
+                        updateOtp();
+                        intervalId = setInterval(updateOtp, 1000);
+
+                    } catch (error) {
+                        console.error("Invalid Base32 Secret Key:", error);
+                        displayError("Secret Key មិនត្រឹមត្រូវ");
+                        totp = null;
+                    }
+                } else {
+                    displayArea.classList.add('hidden');
+                    initialMessage.classList.remove('hidden');
+                    totp = null;
+                }
+            });
+
+            function updateOtp() {
+                if (!totp) return;
+
+                try {
+                    const code = totp.generate();
+                    const remainingTime = 30 - (Math.floor(Date.now() / 1000) % 30);
+                    
+                    otpCodeElement.className = "otp-code text-5xl font-bold text-cyan-400 tracking-widest";
+                    
+                    otpCodeElement.textContent = `${code.substring(0, 3)} ${code.substring(3, 6)}`;
+                    timerText.textContent = remainingTime;
+
+                    const offset = circumference * (1 - (remainingTime / 30));
+                    progressRing.style.strokeDashoffset = offset;
+
+                    if (remainingTime <= 5) {
+                        progressRing.classList.remove('text-cyan-400');
+                        progressRing.classList.add('text-red-500');
+                    } else {
+                        progressRing.classList.remove('text-red-500');
+                        progressRing.classList.add('text-cyan-400');
+                    }
+
+                } catch (error) {
+                    console.error("Error generating token:", error);
+                     if (intervalId) clearInterval(intervalId);
+                     displayError("មានបញ្ហាក្នុងការបង្កើតកូដ");
+                }
+            }
+            
+            function displayError(message) {
+                displayArea.classList.remove('hidden');
+                initialMessage.classList.add('hidden');
+                
+                otpCodeElement.className = "text-lg font-bold text-red-500";
+                otpCodeElement.textContent = message;
+                
+                timerText.textContent = "!";
+                progressRing.style.strokeDashoffset = circumference;
+                progressRing.classList.remove('text-cyan-400');
+                progressRing.classList.add('text-red-500');
+            }
+
+            copyBtn.addEventListener('click', () => {
+                const codeToCopy = otpCodeElement.textContent.replace(/\s/g, '');
+                if (codeToCopy.length !== 6 || isNaN(codeToCopy)) return;
+
+                navigator.clipboard.writeText(codeToCopy).then(() => {
+                    copyBtn.innerHTML = '<i class="fas fa-check text-2xl text-green-400"></i>';
+                    setTimeout(() => {
+                        copyBtn.innerHTML = '<i class="fas fa-copy text-2xl"></i>';
+                    }, 2000);
+                }).catch(err => {
+                    console.error('Failed to copy: ', err);
+                });
+            });
+        });
+    </script>
+</body>
+</html>
